@@ -3,7 +3,7 @@
 **Context-aware, safety-verified LLM remediation for CIS Benchmark compliance on Oracle
 Multitenant (CDB/PDB) databases, including RAC and Exadata.**
 
-[![CI](https://github.com/OWNER/oracle-remediate/actions/workflows/ci.yml/badge.svg)](.github/workflows/ci.yml)
+[![CI](https://github.com/devendraprajput-cloud/oracle-remediate/actions/workflows/ci.yml/badge.svg)](https://github.com/devendraprajput-cloud/oracle-remediate/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 Reference implementation of the ORACLE-REMEDIATE framework (Rajput, Dantuluri, Bajaj,
