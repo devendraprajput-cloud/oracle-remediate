@@ -1,0 +1,8 @@
+# Topology profile 1: single-instance, non-RAC CDB (Docker, oracle/docker-images 19c EE image)
+# Use as an overlay:  orarem --config benchmark/topologies/single.yaml remediate ...
+sandbox:
+  mode: oracle
+  exadata: false
+  clone_clause_default: ""        # OMF is enabled in the docker image; otherwise add FILE_NAME_CONVERT
+target:
+  containers: [SALES_PDB]

@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      oracle_integration:
+        description: "Run invariant/snapshot SQL against Oracle Database Free"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -e ".[dev]"
+      - run: ruff check src tests
+      - run: pytest --cov=oracle_remediate --cov-report=term-missing
+      - name: Offline benchmark smoke test (simulator, mock LLM)
+        run: |
+          orarem --config config/default.yaml demo --topology exadata --eval --out runs
+          orarem eval report runs/run-*
+
+  oracle-integration:
+    if: github.event_name == 'workflow_dispatch' && inputs.oracle_integration
+    runs-on: ubuntu-latest
+    services:
+      oracle:
+        image: gvenzl/oracle-free:23-slim   # community image of Oracle Database Free
+        env:
+          ORACLE_PASSWORD: ci_only_password_1
+        ports: ["1521:1521"]
+        options: >-
+          --health-cmd healthcheck.sh --health-interval 10s --health-timeout 5s --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev,oracle]"
+      - name: Validate every catalog invariant and snapshot view executes
+        env:
+          ORAREM_TEST_DSN: localhost:1521/FREEPDB1
+          ORAREM_TEST_USER: system
+          ORAREM_TEST_PASSWORD: ci_only_password_1
+        run: pytest -m oracle -v

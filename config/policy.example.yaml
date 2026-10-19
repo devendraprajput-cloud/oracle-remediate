@@ -1,0 +1,20 @@
+# Organisation policy context (paper Section III.B "Policy context" and III.D-2 overrides).
+timezone: America/New_York
+
+# Approved exceptions: findings matching these are not remediated.
+exceptions:
+  - control_id: ch2.remote_listener
+    container: "*"
+    reason: "RAC SCAN registration requires REMOTE_LISTENER (approved risk acceptance RA-0001)"
+    expires: 2027-12-31
+
+# AUTO-APPLY is executed only inside a change window (apply.require_change_window).
+change_windows:
+  - {days: [Sat], start: "22:00", end: "02:00"}
+
+# Service accounts: remediations touching these are forced to MANUAL-REVIEW.
+service_accounts: [MONITOR_SVC]
+
+# Additional review-only controls (on top of review_only: true in the catalog).
+review_only_controls:
+  - ch6.no_any_privileges

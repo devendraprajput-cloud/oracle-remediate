@@ -1,0 +1,107 @@
+# ORACLE-REMEDIATE configuration (values shown are the built-in defaults).
+# Copy to config/local.yaml and override what you need:  orarem --config config/local.yaml ...
+# Credentials are NEVER stored here -- only the NAMES of environment variables.
+
+catalog: controls/catalog.yaml
+policy_file: config/policy.example.yaml
+output_dir: runs
+seed: 7
+
+target:                       # read-only audit/context user (SELECT_CATALOG_ROLE; SET CONTAINER)
+  dsn_env: ORAREM_TARGET_DSN
+  user_env: ORAREM_AUDIT_USER
+  password_env: ORAREM_AUDIT_PASSWORD
+  sysdba: false
+  containers: []              # empty = all open PDBs
+
+files:                        # listener.ora / sqlnet.ora for the file-based controls
+  sqlnet_ora: null            # e.g. /u01/app/oracle/product/19.0.0/dbhome_1/network/admin/sqlnet.ora
+  listener_ora: null
+  listeners: [LISTENER]
+
+context:                      # four context classes (paper III.B); toggles drive the RQ3 ablation
+  topology: true
+  dependency: true
+  documentation: true
+  policy: true
+  awr:
+    enabled: false            # DBA_HIST_* requires the Oracle Diagnostics Pack licence
+    window_hours: 24
+  top_sql_limit: 20
+  max_rows_per_query: 50
+
+rag:
+  store: memory               # memory | oracle23ai (AI Vector Search)
+  top_k: 5
+  embedder: hashing           # hashing (offline) | bge-m3 | openai
+  embedding_dim: 1024
+  knowledge_dir: knowledge
+  chunk_chars: 1200
+  oracle:
+    dsn_env: ORAREM_VECTOR_DSN
+    user_env: ORAREM_VECTOR_USER
+    password_env: ORAREM_VECTOR_PASSWORD
+    table: ORAREM_DOC_CHUNKS
+
+llm:
+  backend: mock               # mock | anthropic | openai | openai_compatible | langchain
+  model: mock-remediator
+  temperature: 0.3            # paper T=0.3; see temperature_policy
+  temperature_policy: auto    # auto: omit for models documented to reject it, retry without on 400
+  max_tokens: 4096
+  base_url: null              # openai_compatible: e.g. http://localhost:8000/v1 (vLLM) or :11434/v1 (Ollama)
+  api_key_env: null           # defaults: ANTHROPIC_API_KEY / OPENAI_API_KEY
+  max_workers: 5
+  timeout_s: 120
+  effort: null                # Anthropic effort level for models that support it
+  price_per_mtok: {input: null, output: null}   # fill from your provider's price list for USD cost
+  mock: {p_variant: 0.15, p_wrong: 0.10, p_unsafe: 0.05, context_aware: true}
+
+self_consistency:
+  k: 5                        # samples per finding in normal operation
+evaluation:
+  n: 10                       # samples per finding with --eval (Pass@k, paper IV.E)
+
+verifier:
+  non_interference_sample: 8  # sampled c' != c for the Layer-2 non-interference check
+  never_execute_l1_failures: true
+
+sandbox:
+  mode: simulated             # simulated | oracle
+  topology_profile: single    # simulated only: single | rac2 | exadata
+  admin_dsn_env: ORAREM_SANDBOX_ADMIN_DSN     # CDB root; common user with CREATE PLUGGABLE DATABASE
+  admin_user_env: ORAREM_SANDBOX_ADMIN_USER
+  admin_password_env: ORAREM_SANDBOX_ADMIN_PASSWORD
+  admin_sysdba: false
+  cdb_sandbox:                # disposable CDB for CDB-scope parameters (e.g. the benchmark container)
+    dsn_env: ORAREM_CDB_SANDBOX_DSN
+    user_env: ORAREM_CDB_SANDBOX_USER
+    password_env: ORAREM_CDB_SANDBOX_PASSWORD
+    sysdba: false
+  exadata: auto               # auto (V$CELL) | true | false
+  clone_sql: "CREATE PLUGGABLE DATABASE {shadow} FROM {source} {clause}"
+  clone_clause_exadata: "SNAPSHOT COPY"
+  clone_clause_default: ""    # add FILE_NAME_CONVERT=(...) if you do not use OMF
+  open_sql: "ALTER PLUGGABLE DATABASE {shadow} OPEN"
+  close_sql: "ALTER PLUGGABLE DATABASE {shadow} CLOSE IMMEDIATE"
+  drop_sql: "DROP PLUGGABLE DATABASE {shadow} INCLUDING DATAFILES"
+  snapshot_views_file: config/snapshot_views.yaml
+
+scoring:                      # paper III.D-1 initial values
+  weights: {A: 0.40, V: 0.30, RB: 0.20, R: 0.10}
+  risk_map: {low: 1.0, medium: 0.6, high: 0.3}
+
+decision:                     # paper III.D-2/3 initial values
+  tau_auto: 0.85
+  tau_review: 0.55
+  hard_floor_layers: [L3, L_RB]
+  strict_auto_apply: true     # implementation safeguard; false reproduces the paper exactly (docs/DESIGN_NOTES.md D1)
+
+apply:                        # production execution of AUTO-APPLY; also requires --apply on the CLI
+  enabled: false
+  require_change_window: true
+  auto_rollback_on_failure: true
+  dsn_env: ORAREM_APPLY_DSN
+  user_env: ORAREM_APPLY_USER
+  password_env: ORAREM_APPLY_PASSWORD
+  sysdba: false

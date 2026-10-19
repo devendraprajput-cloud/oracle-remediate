@@ -1,0 +1,338 @@
+# ORACLE-REMEDIATE reference control catalog
+# =====================================================================================
+# READ FIRST
+# * The CIS Oracle Database 19c Benchmark v2.0.0 text is licensed by CIS and is NOT
+#   reproduced here. Titles below are paraphrased by the framework authors.
+# * `cis_id` is filled ONLY where the paper states the identifier (4.7, 2.2.7, 2.2.11).
+#   Map the rest from your licensed CIS PDF; `orarem catalog validate` reports coverage.
+# * `provenance`:
+#     paper           -> control explicitly discussed in the ORACLE-REMEDIATE paper
+#     cis-19c-family  -> long-standing control in CIS Oracle benchmarks; verify the exact
+#                        v2.0.0 identifier, expected value and audit query before use
+#     example         -> hardening example used to exercise a framework code path
+# * Expected values reflect commonly published CIS recommendations; your organisation's
+#   policy file (config/policy.example.yaml) can add exceptions.
+# * `scope: auto` resolves at run time from V$PARAMETER.ISPDB_MODIFIABLE (parameters) or
+#   to `pdb` (dictionary controls). `requires_restart` is a fallback; the live
+#   ISSYS_MODIFIABLE value collected by the context layer takes precedence.
+# =====================================================================================
+meta:
+  benchmark: "CIS Oracle Database 19c Benchmark v2.0.0 (reference subset)"
+  target_controls: 92
+  paper_chapter_counts: {ch1: 1, ch2: 30, ch3: 8, ch4: 8, ch5: 5, ch6: 40}
+
+controls:
+  # ---------------------------------------------------------------- Chapter 1
+  - id: ch1.patch_level
+    title: Ensure the latest Release Update / security patches are applied
+    control_class: ch1_patch
+    chapter: 1
+    kind: manual
+    rollback_possible: false
+    notes: Patching is one-way and out of automated scope (paper Section V). Routed to manual review.
+    keywords: [patch, release update, opatch, datapatch]
+
+  # ---------------------------------------------------------------- Chapter 2: files
+  - id: ch2.sqlnet_encryption_server
+    cis_id: "2.2.7"
+    provenance: paper
+    title: Ensure SQLNET.ENCRYPTION_SERVER is REQUIRED in sqlnet.ora
+    control_class: ch2_file
+    chapter: 2
+    kind: ora_file
+    scope: file
+    params: {file: sqlnet.ora, key: SQLNET.ENCRYPTION_SERVER, op: eq, expected: REQUIRED}
+    notes: Paper cites this as 2.2.7. Requires matching client capability; adds AES cycles per round trip (paper VI.A).
+    keywords: [native network encryption, sqlnet.ora, encryption_server]
+  - id: ch2.sqlnet_crypto_checksum_server
+    cis_id: "2.2.11"
+    provenance: paper
+    title: Ensure SQLNET.CRYPTO_CHECKSUM_SERVER is REQUIRED in sqlnet.ora
+    control_class: ch2_file
+    chapter: 2
+    kind: ora_file
+    scope: file
+    params: {file: sqlnet.ora, key: SQLNET.CRYPTO_CHECKSUM_SERVER, op: eq, expected: REQUIRED}
+    keywords: [crypto checksum, data integrity, sqlnet.ora]
+  - id: ch2.listener_admin_restrictions
+    title: Ensure ADMIN_RESTRICTIONS_<listener> is ON in listener.ora
+    control_class: ch2_file
+    chapter: 2
+    kind: ora_file
+    scope: file
+    params: {file: listener.ora, key: "ADMIN_RESTRICTIONS_{listener}", op: eq, expected: "ON"}
+    keywords: [listener, admin_restrictions, lsnrctl set]
+  - id: ch2.listener_secure_control
+    title: Ensure SECURE_CONTROL_<listener> is set in listener.ora
+    control_class: ch2_file
+    chapter: 2
+    kind: ora_file
+    scope: file
+    params: {file: listener.ora, key: "SECURE_CONTROL_{listener}", op: present}
+    keywords: [listener, secure_control, tcps]
+  - id: ch2.listener_no_extproc
+    title: Ensure extproc is not configured in listener.ora
+    control_class: ch2_file
+    chapter: 2
+    kind: ora_file
+    scope: file
+    rollback_possible: false
+    review_only: true
+    params: {file: listener.ora, op: absent_substring, substring: EXTPROC}
+    notes: Removal edits a nested ADDRESS_LIST; not expressible as a single key edit, so routed to manual review.
+    keywords: [extproc, external procedures, listener]
+
+  # ---------------------------------------------------------------- Chapter 2: parameters
+  - id: ch2.audit_sys_operations
+    title: Ensure AUDIT_SYS_OPERATIONS is TRUE
+    control_class: ch2_param
+    chapter: 2
+    kind: parameter
+    requires_restart: true
+    params: {name: audit_sys_operations, op: eq, expected: "TRUE"}
+    keywords: [sys auditing, audit_sys_operations]
+  - id: ch2.global_names
+    title: Ensure GLOBAL_NAMES is TRUE
+    control_class: ch2_param
+    chapter: 2
+    kind: parameter
+    params: {name: global_names, op: eq, expected: "TRUE"}
+    notes: Affects database-link name resolution; check dependency context for links whose name differs from the remote global name.
+    keywords: [global_names, database link naming]
+  - id: ch2.os_roles
+    title: Ensure OS_ROLES is FALSE
+    control_class: ch2_param
+    chapter: 2
+    kind: parameter
+    requires_restart: true
+    params: {name: os_roles, op: eq, expected: "FALSE"}
+    keywords: [os_roles, operating system roles]
+  - id: ch2.remote_listener
+    title: Ensure REMOTE_LISTENER is empty
+    control_class: ch2_param
+    chapter: 2
+    kind: parameter
+    params: {name: remote_listener, op: empty}
+    notes: On RAC the SCAN listener is normally registered through REMOTE_LISTENER; topology context must flag this. Expect a policy exception on RAC.
+    keywords: [remote_listener, scan, rac]
+  - id: ch2.remote_login_passwordfile
+    title: Ensure REMOTE_LOGIN_PASSWORDFILE is NONE
+    control_class: ch2_param
+    chapter: 2
+    kind: parameter
+    requires_restart: true
+    review_only: true
+    params: {name: remote_login_passwordfile, op: eq, expected: NONE}
+    notes: Data Guard redo transport and remote SYSDBA administration rely on password-file authentication; topology context (GV$DATAGUARD_CONFIG) must be considered (paper III.B).
+    keywords: [password file, data guard, sysdba, remote_login_passwordfile]
+  - id: ch2.remote_os_roles
+    title: Ensure REMOTE_OS_ROLES is FALSE
+    control_class: ch2_param
+    chapter: 2
+    kind: parameter
+    requires_restart: true
+    params: {name: remote_os_roles, op: eq, expected: "FALSE"}
+    keywords: [remote_os_roles]
+  - id: ch2.sec_max_failed_login_attempts
+    title: Ensure SEC_MAX_FAILED_LOGIN_ATTEMPTS is 3 or less
+    control_class: ch2_param
+    chapter: 2
+    kind: parameter
+    requires_restart: true
+    params: {name: sec_max_failed_login_attempts, op: le, expected: 3}
+    keywords: [failed login, authentication attempts]
+  - id: ch2.sec_protocol_error_further_action
+    title: Ensure SEC_PROTOCOL_ERROR_FURTHER_ACTION is (DROP,3)
+    control_class: ch2_param
+    chapter: 2
+    kind: parameter
+    params: {name: sec_protocol_error_further_action, op: eq, expected: "(DROP,3)"}
+    keywords: [protocol error, bad packets]
+  - id: ch2.sec_protocol_error_trace_action
+    title: Ensure SEC_PROTOCOL_ERROR_TRACE_ACTION is LOG
+    control_class: ch2_param
+    chapter: 2
+    kind: parameter
+    params: {name: sec_protocol_error_trace_action, op: eq, expected: LOG}
+    keywords: [protocol error trace]
+  - id: ch2.sec_return_server_release_banner
+    title: Ensure SEC_RETURN_SERVER_RELEASE_BANNER is FALSE
+    control_class: ch2_param
+    chapter: 2
+    kind: parameter
+    requires_restart: true
+    params: {name: sec_return_server_release_banner, op: eq, expected: "FALSE"}
+    keywords: [release banner, version disclosure]
+  - id: ch2.sql92_security
+    title: Ensure SQL92_SECURITY is TRUE
+    control_class: ch2_param
+    chapter: 2
+    kind: parameter
+    requires_restart: true
+    params: {name: sql92_security, op: eq, expected: "TRUE"}
+    keywords: [sql92_security, update delete select privilege]
+  - id: ch2.resource_limit
+    title: Ensure RESOURCE_LIMIT is TRUE
+    control_class: ch2_param
+    chapter: 2
+    kind: parameter
+    params: {name: resource_limit, op: eq, expected: "TRUE"}
+    keywords: [resource_limit, profile kernel limits]
+
+  # ---------------------------------------------------------------- Chapter 3: profiles
+  - id: ch3.failed_login_attempts
+    title: Ensure FAILED_LOGIN_ATTEMPTS is 5 or less in every profile
+    control_class: ch3_prof
+    chapter: 3
+    kind: profile_limit
+    params: {resource: FAILED_LOGIN_ATTEMPTS, op: le, value: 5}
+    keywords: [profile, failed_login_attempts, lockout]
+  - id: ch3.password_lock_time
+    title: Ensure PASSWORD_LOCK_TIME is 1 or greater in every profile
+    control_class: ch3_prof
+    chapter: 3
+    kind: profile_limit
+    params: {resource: PASSWORD_LOCK_TIME, op: ge, value: 1}
+    keywords: [profile, password_lock_time]
+  - id: ch3.password_life_time
+    title: Ensure PASSWORD_LIFE_TIME is 90 or less in every profile
+    control_class: ch3_prof
+    chapter: 3
+    kind: profile_limit
+    params: {resource: PASSWORD_LIFE_TIME, op: le, value: 90}
+    notes: Service accounts in the policy whitelist commonly need a dedicated profile; check dependency context.
+    keywords: [profile, password_life_time, expiry]
+  - id: ch3.password_reuse_max
+    title: Ensure PASSWORD_REUSE_MAX is 20 or greater in every profile
+    control_class: ch3_prof
+    chapter: 3
+    kind: profile_limit
+    params: {resource: PASSWORD_REUSE_MAX, op: ge, value: 20}
+    keywords: [profile, password_reuse_max]
+  - id: ch3.password_reuse_time
+    title: Ensure PASSWORD_REUSE_TIME is 365 or greater in every profile
+    control_class: ch3_prof
+    chapter: 3
+    kind: profile_limit
+    params: {resource: PASSWORD_REUSE_TIME, op: ge, value: 365}
+    keywords: [profile, password_reuse_time]
+  - id: ch3.password_grace_time
+    title: Ensure PASSWORD_GRACE_TIME is 5 or less in every profile
+    control_class: ch3_prof
+    chapter: 3
+    kind: profile_limit
+    params: {resource: PASSWORD_GRACE_TIME, op: le, value: 5}
+    keywords: [profile, password_grace_time]
+  - id: ch3.password_verify_function
+    title: Ensure PASSWORD_VERIFY_FUNCTION is set in every profile
+    control_class: ch3_prof
+    chapter: 3
+    kind: profile_limit
+    params: {resource: PASSWORD_VERIFY_FUNCTION, op: not_null}
+    notes: The verify function must exist (e.g. ORA12C_STRONG_VERIFY_FUNCTION); context assembly should confirm via DBA_PROCEDURES.
+    keywords: [profile, password_verify_function, complexity]
+  - id: ch3.sessions_per_user
+    title: Ensure SESSIONS_PER_USER is 10 or less in every profile
+    control_class: ch3_prof
+    chapter: 3
+    kind: profile_limit
+    params: {resource: SESSIONS_PER_USER, op: le, value: 10}
+    notes: Enforced only when RESOURCE_LIMIT=TRUE. Connection-pooled application accounts often need an exception.
+    keywords: [profile, sessions_per_user, connection pool]
+  - id: ch3.inactive_account_time
+    title: Ensure INACTIVE_ACCOUNT_TIME is 120 or less in every profile
+    control_class: ch3_prof
+    chapter: 3
+    kind: profile_limit
+    params: {resource: INACTIVE_ACCOUNT_TIME, op: le, value: 120}
+    keywords: [profile, inactive_account_time]
+
+  # ---------------------------------------------------------------- Chapter 4: users
+  - id: ch4.no_default_passwords
+    title: Ensure no open accounts use default passwords
+    control_class: ch4_user
+    chapter: 4
+    kind: default_passwords
+    rollback_possible: false
+    notes: Password reset is one-way (paper Section V); routed to manual review.
+    keywords: [default password, dba_users_with_defpwd]
+  - id: ch4.no_public_db_links
+    cis_id: "4.7"
+    provenance: paper
+    title: Ensure no public database links exist
+    control_class: ch4_user
+    chapter: 4
+    kind: no_public_db_links
+    notes: Paper Section III.G example. Rollback cannot restore link credentials, so the round trip is expected to fail (L_RB=0 -> REJECT).
+    keywords: [database link, public db link, cdb_db_links]
+  - id: ch4.no_external_auth_users
+    title: Ensure no application users authenticate EXTERNALLY
+    control_class: ch4_user
+    chapter: 4
+    kind: external_auth
+    rollback_possible: false
+    notes: Switching authentication requires a password set (one-way); routed to manual review.
+    keywords: [external authentication, os authentication, ops$]
+  - id: ch4.users_not_default_profile
+    provenance: example
+    title: Ensure application users are not assigned the DEFAULT profile
+    control_class: ch4_user
+    chapter: 4
+    kind: users_default_profile
+    expected_tables_extra: [DBA_PROFILES]
+    keywords: [default profile, user profile assignment]
+
+  # ---------------------------------------------------------------- Chapter 5: unified audit
+  # Paper III.D-2: controls affecting audit subsystems are review-only.
+  - {id: ch5.audit_create_user, title: Ensure CREATE USER is audited by an enabled unified policy, control_class: ch5_audit, chapter: 5, kind: audit_action, review_only: true, params: {option: CREATE USER}, keywords: [unified audit, create user]}
+  - {id: ch5.audit_alter_user, title: Ensure ALTER USER is audited by an enabled unified policy, control_class: ch5_audit, chapter: 5, kind: audit_action, review_only: true, params: {option: ALTER USER}, keywords: [unified audit, alter user]}
+  - {id: ch5.audit_drop_user, title: Ensure DROP USER is audited by an enabled unified policy, control_class: ch5_audit, chapter: 5, kind: audit_action, review_only: true, params: {option: DROP USER}, keywords: [unified audit, drop user]}
+  - {id: ch5.audit_create_role, title: Ensure CREATE ROLE is audited by an enabled unified policy, control_class: ch5_audit, chapter: 5, kind: audit_action, review_only: true, params: {option: CREATE ROLE}, keywords: [unified audit, create role]}
+  - {id: ch5.audit_grant, title: Ensure GRANT is audited by an enabled unified policy, control_class: ch5_audit, chapter: 5, kind: audit_action, review_only: true, params: {option: GRANT}, keywords: [unified audit, grant]}
+  - {id: ch5.audit_revoke, title: Ensure REVOKE is audited by an enabled unified policy, control_class: ch5_audit, chapter: 5, kind: audit_action, review_only: true, params: {option: REVOKE}, keywords: [unified audit, revoke]}
+  - {id: ch5.audit_create_db_link, title: Ensure CREATE DATABASE LINK is audited by an enabled unified policy, control_class: ch5_audit, chapter: 5, kind: audit_action, review_only: true, params: {option: CREATE DATABASE LINK}, keywords: [unified audit, database link]}
+  - {id: ch5.audit_alter_system, title: Ensure ALTER SYSTEM is audited by an enabled unified policy, control_class: ch5_audit, chapter: 5, kind: audit_action, review_only: true, params: {option: ALTER SYSTEM}, keywords: [unified audit, alter system]}
+
+  # ---------------------------------------------------------------- Chapter 6: PUBLIC EXECUTE
+  # Revoking from PUBLIC can invalidate application code that relies on the PUBLIC grant;
+  # the dependency context (DBA_DEPENDENCIES) and Layer 3 (DBA_OBJECTS status) exist for this.
+  - {id: ch6.public_exec_utl_tcp, title: Revoke EXECUTE on UTL_TCP from PUBLIC, control_class: ch6_priv, chapter: 6, kind: public_execute, params: {object: UTL_TCP}, keywords: [utl_tcp, network packages, public]}
+  - {id: ch6.public_exec_utl_smtp, title: Revoke EXECUTE on UTL_SMTP from PUBLIC, control_class: ch6_priv, chapter: 6, kind: public_execute, params: {object: UTL_SMTP}, keywords: [utl_smtp, network packages, public]}
+  - {id: ch6.public_exec_utl_mail, title: Revoke EXECUTE on UTL_MAIL from PUBLIC, control_class: ch6_priv, chapter: 6, kind: public_execute, params: {object: UTL_MAIL}, keywords: [utl_mail, network packages, public]}
+  - {id: ch6.public_exec_utl_http, title: Revoke EXECUTE on UTL_HTTP from PUBLIC, control_class: ch6_priv, chapter: 6, kind: public_execute, params: {object: UTL_HTTP}, keywords: [utl_http, network packages, public]}
+  - {id: ch6.public_exec_utl_inaddr, title: Revoke EXECUTE on UTL_INADDR from PUBLIC, control_class: ch6_priv, chapter: 6, kind: public_execute, params: {object: UTL_INADDR}, keywords: [utl_inaddr, network packages, public]}
+  - {id: ch6.public_exec_dbms_ldap, title: Revoke EXECUTE on DBMS_LDAP from PUBLIC, control_class: ch6_priv, chapter: 6, kind: public_execute, params: {object: DBMS_LDAP}, keywords: [dbms_ldap, network packages, public]}
+  - {id: ch6.public_exec_utl_file, title: Revoke EXECUTE on UTL_FILE from PUBLIC, control_class: ch6_priv, chapter: 6, kind: public_execute, params: {object: UTL_FILE}, keywords: [utl_file, file access, public]}
+  - {id: ch6.public_exec_dbms_lob, title: Revoke EXECUTE on DBMS_LOB from PUBLIC, control_class: ch6_priv, chapter: 6, kind: public_execute, params: {object: DBMS_LOB}, notes: Widely used by application code; expect dependency hits., keywords: [dbms_lob, public]}
+  - {id: ch6.public_exec_dbms_advisor, title: Revoke EXECUTE on DBMS_ADVISOR from PUBLIC, control_class: ch6_priv, chapter: 6, kind: public_execute, params: {object: DBMS_ADVISOR}, keywords: [dbms_advisor, public]}
+  - {id: ch6.public_exec_dbms_crypto, title: Revoke EXECUTE on DBMS_CRYPTO from PUBLIC, control_class: ch6_priv, chapter: 6, kind: public_execute, params: {object: DBMS_CRYPTO}, keywords: [dbms_crypto, encryption, public]}
+  - {id: ch6.public_exec_dbms_random, title: Revoke EXECUTE on DBMS_RANDOM from PUBLIC, control_class: ch6_priv, chapter: 6, kind: public_execute, params: {object: DBMS_RANDOM}, keywords: [dbms_random, public]}
+  - {id: ch6.public_exec_dbms_java, title: Revoke EXECUTE on DBMS_JAVA from PUBLIC, control_class: ch6_priv, chapter: 6, kind: public_execute, params: {object: DBMS_JAVA}, keywords: [dbms_java, ojvm, public]}
+  - {id: ch6.public_exec_dbms_java_test, title: Revoke EXECUTE on DBMS_JAVA_TEST from PUBLIC, control_class: ch6_priv, chapter: 6, kind: public_execute, params: {object: DBMS_JAVA_TEST}, keywords: [dbms_java_test, ojvm, public]}
+  - {id: ch6.public_exec_dbms_scheduler, title: Revoke EXECUTE on DBMS_SCHEDULER from PUBLIC, control_class: ch6_priv, chapter: 6, kind: public_execute, params: {object: DBMS_SCHEDULER}, keywords: [dbms_scheduler, jobs, public]}
+  - {id: ch6.public_exec_dbms_job, title: Revoke EXECUTE on DBMS_JOB from PUBLIC, control_class: ch6_priv, chapter: 6, kind: public_execute, params: {object: DBMS_JOB}, keywords: [dbms_job, jobs, public]}
+  - {id: ch6.public_exec_dbms_sql, title: Revoke EXECUTE on DBMS_SQL from PUBLIC, control_class: ch6_priv, chapter: 6, kind: public_execute, params: {object: DBMS_SQL}, notes: Widely used; dependency context is essential., keywords: [dbms_sql, dynamic sql, public]}
+  - {id: ch6.public_exec_dbms_xmlgen, title: Revoke EXECUTE on DBMS_XMLGEN from PUBLIC, control_class: ch6_priv, chapter: 6, kind: public_execute, params: {object: DBMS_XMLGEN}, keywords: [dbms_xmlgen, sql injection, public]}
+  - {id: ch6.public_exec_dbms_backup_restore, title: Revoke EXECUTE on DBMS_BACKUP_RESTORE from PUBLIC, control_class: ch6_priv, chapter: 6, kind: public_execute, params: {object: DBMS_BACKUP_RESTORE}, keywords: [dbms_backup_restore, public]}
+
+  # ---------------------------------------------------------------- Chapter 6: system privileges
+  - {id: ch6.no_any_privileges, title: Ensure no ANY system privileges are granted to non-Oracle-maintained grantees, control_class: ch6_priv, chapter: 6, kind: sys_priv, params: {pattern: "% ANY %"}, keywords: [any privilege, least privilege]}
+  - {id: ch6.no_audit_system, title: Ensure AUDIT SYSTEM is not granted to non-Oracle-maintained grantees, control_class: ch6_priv, chapter: 6, kind: sys_priv, review_only: true, params: {privileges: [AUDIT SYSTEM]}, keywords: [audit system privilege]}
+  - {id: ch6.no_alter_system_priv, title: Ensure ALTER SYSTEM is not granted to non-Oracle-maintained grantees, control_class: ch6_priv, chapter: 6, kind: sys_priv, params: {privileges: [ALTER SYSTEM]}, keywords: [alter system privilege]}
+  - {id: ch6.no_become_user, title: Ensure BECOME USER is not granted to non-Oracle-maintained grantees, control_class: ch6_priv, chapter: 6, kind: sys_priv, params: {privileges: [BECOME USER]}, keywords: [become user]}
+  - {id: ch6.no_exempt_access_policy, title: Ensure EXEMPT ACCESS POLICY is not granted to non-Oracle-maintained grantees, control_class: ch6_priv, chapter: 6, kind: sys_priv, params: {privileges: [EXEMPT ACCESS POLICY]}, keywords: [vpd, exempt access policy]}
+  - {id: ch6.no_exempt_redaction_policy, title: Ensure EXEMPT REDACTION POLICY is not granted to non-Oracle-maintained grantees, control_class: ch6_priv, chapter: 6, kind: sys_priv, params: {privileges: [EXEMPT REDACTION POLICY]}, keywords: [data redaction, exempt redaction policy]}
+  - {id: ch6.no_create_library, title: Ensure CREATE LIBRARY is not granted to non-Oracle-maintained grantees, control_class: ch6_priv, chapter: 6, kind: sys_priv, params: {privileges: [CREATE LIBRARY]}, keywords: [create library, extproc]}
+  - {id: ch6.no_admin_option, title: Ensure no system privileges are granted WITH ADMIN OPTION to non-Oracle-maintained grantees, control_class: ch6_priv, chapter: 6, kind: admin_option, keywords: [with admin option]}
+
+  # ---------------------------------------------------------------- Chapter 6: roles
+  - {id: ch6.no_dba_role, title: Ensure the DBA role is not granted to non-Oracle-maintained grantees, control_class: ch6_priv, chapter: 6, kind: role_grant, review_only: true, params: {roles: [DBA]}, keywords: [dba role]}
+  - {id: ch6.no_select_catalog_role, title: Ensure SELECT_CATALOG_ROLE is not granted to non-Oracle-maintained grantees, control_class: ch6_priv, chapter: 6, kind: role_grant, params: {roles: [SELECT_CATALOG_ROLE]}, notes: Monitoring tools frequently hold this role; policy service-account whitelist applies., keywords: [select_catalog_role]}
+  - {id: ch6.no_execute_catalog_role, title: Ensure EXECUTE_CATALOG_ROLE is not granted to non-Oracle-maintained grantees, control_class: ch6_priv, chapter: 6, kind: role_grant, params: {roles: [EXECUTE_CATALOG_ROLE]}, keywords: [execute_catalog_role]}
+
+  # ---------------------------------------------------------------- Chapter 6: sensitive dictionary objects
+  - {id: ch6.no_access_user_dollar, title: Ensure no non-Oracle-maintained grantee can access SYS.USER$, control_class: ch6_priv, chapter: 6, kind: object_access, params: {objects: [USER$]}, keywords: [user$, password hashes]}
+  - {id: ch6.no_access_link_dollar, title: Ensure no non-Oracle-maintained grantee can access SYS.LINK$, control_class: ch6_priv, chapter: 6, kind: object_access, params: {objects: [LINK$]}, keywords: [link$, database link credentials]}
+  - {id: ch6.no_access_user_history, title: Ensure no non-Oracle-maintained grantee can access SYS.USER_HISTORY$, control_class: ch6_priv, chapter: 6, kind: object_access, params: {objects: [USER_HISTORY$]}, keywords: [user_history$, password history]}
+  - {id: ch6.no_access_scheduler_credential, title: Ensure no non-Oracle-maintained grantee can access SYS.SCHEDULER$_CREDENTIAL, control_class: ch6_priv, chapter: 6, kind: object_access, params: {objects: [SCHEDULER$_CREDENTIAL]}, keywords: [scheduler credential]}
+  - {id: ch6.no_access_xs_verifiers, title: Ensure no non-Oracle-maintained grantee can access SYS.XS$VERIFIERS, control_class: ch6_priv, chapter: 6, kind: object_access, params: {objects: [XS$VERIFIERS]}, keywords: [xs$verifiers, real application security]}

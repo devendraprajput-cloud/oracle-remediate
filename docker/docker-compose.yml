@@ -1,0 +1,37 @@
+# Benchmark stack (paper Section IV.C, profile "single").
+#
+# 1. Build the Oracle 19c Enterprise Edition image yourself (Oracle licence terms apply):
+#      git clone https://github.com/oracle/docker-images
+#      # place LINUX.X64_193000_db_home.zip in OracleDatabase/SingleInstance/dockerfiles/19.3.0/
+#      cd docker-images/OracleDatabase/SingleInstance/dockerfiles && ./buildContainerImage.sh -v 19.3.0 -e
+# 2. cp docker/.env.example docker/.env  and edit it
+# 3. docker compose -f docker/docker-compose.yml up -d oracle19c vectordb
+#
+# The vector store uses Oracle Database 23ai Free from container-registry.oracle.com
+# (you may need to sign in and accept the licence there first).
+services:
+  oracle19c:
+    image: ${ORACLE19C_IMAGE:-oracle/database:19.3.0-ee}
+    environment:
+      ORACLE_SID: ORCLCDB
+      ORACLE_PDB: SALES_PDB
+      ORACLE_PWD: ${ORACLE_PWD:?set ORACLE_PWD in docker/.env}
+    ports: ["1521:1521"]
+    volumes:
+      - oradata19c:/opt/oracle/oradata
+      - ../benchmark/seed:/opt/oracle/scripts/setup:ro   # runs once after database creation
+  vectordb:
+    image: container-registry.oracle.com/database/free:latest
+    environment:
+      ORACLE_PWD: ${ORACLE_PWD:?set ORACLE_PWD in docker/.env}
+    ports: ["1522:1521"]
+    volumes: [oradata23ai:/opt/oracle/oradata]
+  orarem:
+    build: {context: .., dockerfile: docker/Dockerfile}
+    env_file: [.env]
+    depends_on: [oracle19c, vectordb]
+    volumes: ["../runs:/app/runs"]
+    command: ["demo"]
+volumes:
+  oradata19c: {}
+  oradata23ai: {}

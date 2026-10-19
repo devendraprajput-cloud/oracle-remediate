@@ -1,0 +1,38 @@
+# Dictionary snapshot used by Layer 3 (bisimulation) and the rollback round trip.
+# Only stable columns are selected: timestamps, SCNs and audit ids are excluded by
+# construction (paper: "up to timestamp and redo-log normalisation").
+# The view names (keys) must match the names used in
+# src/oracle_remediate/verify/bisimulation.py:EXPECTED_VIEWS.
+#
+# The unified audit trail itself is deliberately NOT snapshotted: executing the
+# remediation is audited, so the trail always changes.
+views:
+  DBA_USERS: >-
+    SELECT username, profile, account_status, authentication_type, default_tablespace, common
+      FROM dba_users
+  DBA_PROFILES: SELECT profile, resource_name, resource_type, limit FROM dba_profiles
+  DBA_SYS_PRIVS: SELECT grantee, privilege, admin_option, common FROM dba_sys_privs
+  DBA_TAB_PRIVS: >-
+    SELECT grantee, owner, table_name, privilege, grantable, hierarchy, common FROM dba_tab_privs
+  DBA_ROLE_PRIVS: SELECT grantee, granted_role, admin_option, default_role, common FROM dba_role_privs
+  DBA_ROLES: SELECT role, authentication_type, common FROM dba_roles
+  V$PARAMETER: SELECT name, value FROM v$parameter
+  V$SPPARAMETER: SELECT sid, name, value FROM v$spparameter WHERE isspecified = 'TRUE'
+  AUDIT_UNIFIED_POLICIES: >-
+    SELECT policy_name, audit_option, audit_option_type, object_schema, object_name, audit_condition
+      FROM audit_unified_policies
+  AUDIT_UNIFIED_ENABLED_POLICIES: >-
+    SELECT policy_name, enabled_option, entity_name, success, failure FROM audit_unified_enabled_policies
+  DBA_DB_LINKS: SELECT owner, db_link, username, host FROM dba_db_links
+  # Object validity, aggregated. Catches invalidation cascades (revoked grants, dropped links).
+  DBA_OBJECTS_STATUS: >-
+    SELECT owner, object_type, status, COUNT(*) FROM dba_objects
+     WHERE object_type <> 'DATABASE LINK' GROUP BY owner, object_type, status
+
+# Optional: requires SELECT on SYS.LINK$ (grantable only by SYS). Enables detection of
+# link-credential changes (paper Section III.G). Disabled by default.
+optional_views:
+  SYS.LINK$: >-
+    SELECT u.name AS owner, l.name, STANDARD_HASH(l.passwordx, 'SHA256') AS secret_hash
+      FROM sys.link$ l JOIN sys.user$ u ON u.user# = l.owner#
+enable_optional: []

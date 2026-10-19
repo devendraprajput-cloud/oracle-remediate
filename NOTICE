@@ -1,0 +1,12 @@
+ORACLE-REMEDIATE
+Copyright 2026 Devendra Rajput, Venkata Seetarama Raju Dantuluri, Sanjay Bajaj, Anil Kolhe
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Trademarks: Oracle, Exadata and Real Application Clusters are trademarks of
+Oracle and/or its affiliates. CIS and CIS Benchmarks are trademarks of the
+Center for Internet Security, Inc. This project is not affiliated with or
+endorsed by Oracle, the Center for Internet Security, Anthropic or OpenAI.
+
+The CIS Oracle Database 19c Benchmark text is NOT included. Control titles in
+controls/catalog.yaml are paraphrased by the project authors.

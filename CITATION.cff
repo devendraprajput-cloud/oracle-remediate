@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the paper."
+title: "ORACLE-REMEDIATE"
+version: 0.1.0
+license: Apache-2.0
+authors:
+  - family-names: Rajput
+    given-names: Devendra
+  - family-names: Dantuluri
+    given-names: Venkata Seetarama Raju
+  - family-names: Bajaj
+    given-names: Sanjay
+  - family-names: Kolhe
+    given-names: Anil
+preferred-citation:
+  type: article
+  title: "ORACLE-REMEDIATE: Context-Aware, Safety-Verified LLM Remediation for CIS Benchmark Compliance on Oracle Multitenant Databases"
+  authors:
+    - family-names: Rajput
+      given-names: Devendra
+    - family-names: Dantuluri
+      given-names: Venkata Seetarama Raju
+    - family-names: Bajaj
+      given-names: Sanjay
+    - family-names: Kolhe
+      given-names: Anil

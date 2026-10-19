@@ -1,0 +1,10 @@
+# Topology profile 3: Exadata X10M-class CDB with ASM and a Data Guard standby.
+# "Simulated" in the paper means an equivalent lab configuration; the offline simulator
+# profile `exadata` (sandbox.mode: simulated) reproduces its context signals only.
+sandbox:
+  mode: oracle
+  exadata: true                  # use SNAPSHOT COPY thin clones
+  clone_clause_exadata: "SNAPSHOT COPY"
+  # Validate snapshot-copy prerequisites for your storage (sparse grid disks / ACFS) and release.
+target:
+  containers: [SALES_PDB]

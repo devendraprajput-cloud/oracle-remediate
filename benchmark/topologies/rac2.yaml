@@ -1,0 +1,9 @@
+# Topology profile 2: two-node RAC CDB. Requires a real (or lab) RAC cluster;
+# RAC cannot be reproduced in the single-host Docker image.
+sandbox:
+  mode: oracle
+  exadata: false
+  # Clone into the same CDB, opened on the local instance only (sufficient for verification)
+  open_sql: "ALTER PLUGGABLE DATABASE {shadow} OPEN"
+target:
+  containers: [SALES_PDB]
